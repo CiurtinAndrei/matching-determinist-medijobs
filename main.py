@@ -14,12 +14,31 @@ try:
 except SQLAlchemyError as e:
     print("MySQL connection failed!" + e)
 
-
-def getNeedData(id):
+def getAvailableNeeds():
     #LEGEND: need_id, company_id, salary, category_id, category(name), subcategory_id, subcategory(name), city_id, city(name) latitude, longitude, schedule_id, schedule_name
     query = """
     SELECT n.id as need_id, c.id AS company_id, n.salary, ctg.id AS category_id, ctg.value AS category, 
     s.id AS subcategory_id, s.value AS subcategory, cty.id AS city_id, cty.name AS city, cty.lat as latitude, cty.lng as longitude, sch.id as schedule_id, sch.value AS schedule_name
+    FROM needs n
+    INNER JOIN companies c ON (n.company_id = c.id)
+    INNER JOIN categories ctg ON(n.category_id = ctg.id)
+    INNER JOIN subcategories s ON(n.subcategory_id = s.id)
+    INNER JOIN cities cty ON(n.city_id = cty.id)
+    INNER JOIN need_schedule ns ON(n.id = ns.need_id)
+    INNER JOIN schedules sch ON (ns.schedule_id = sch.id)
+    WHERE n.active = 1 AND n.signed = 1 AND n.finalized_status IS NULL;
+    """
+    result = conn.execute(text(query))
+    return result
+
+def getNeedData(id):
+    #TEST CASES: 2454 (cazul fericit), 9543 (cazul cu prea putini candidati in orasul respectiv), 8013 (caz fericit - asistenti), 9353 (prea putini candidati: domeniu obscur)
+    #TEST CASES: 9717 (caz intr-un oras in afara de bucuresti. TREBUIE NEAPARAT DIN ALTE ORASE!!!!), 10195 (iar prea putini, dar le trebuie garzi!)
+    #LEGEND: need_id, company_id, salary, category_id, category(name), subcategory_id, subcategory(name), city_id, city(name), county, latitude, longitude, schedule_id, schedule_name
+    query = """
+    SELECT n.id as need_id, c.id AS company_id, n.salary, ctg.id AS category_id, ctg.value AS category, 
+    s.id AS subcategory_id, s.value AS subcategory, cty.id AS city_id, cty.name AS city, cty.county,cty.lat as latitude, cty.lng as longitude, 
+    sch.id as schedule_id, sch.value AS schedule_name
     FROM needs n
     INNER JOIN companies c ON (n.company_id = c.id)
     INNER JOIN categories ctg ON(n.category_id = ctg.id)
@@ -69,24 +88,25 @@ def getCandidates(need):
             AND prc.need_id = :needId
         )
         /*  INCLUSIONS  */
-        AND (cde.category_id = :categoryId AND cde.subcategory_id = :subcategoryId)
+        AND (cde.category_id = :categoryId AND cde.subcategory_id = :subcategoryId AND c.identification_id <= 2)
 
-    ORDER BY c.education_id DESC, c.desired_salary ASC, c.id;
+    ORDER BY c.education_id DESC, c.experience_id DESC, c.desired_salary ASC, c.id;
     """
     result = conn.execute(text(query), {"needId": need_id, "companyId":company_id, "categoryId":category_id, "subcategoryId":subcategory_id, "cityId":city_id})
 
     return result
 
-
-def exportCandidateDataTxt(candidateList):
-    filePath = "./exports/candidates.txt"
+def exportCandidateDataTxt(need, candidateList):
+    filePath = f"./exports/need_{need.need_id}/candidates.txt"
     with io.open(filePath, "w", encoding='utf-8') as file:
         file.write(f"Number of unique candidates: {len(candidateList)} \n\n\n")
         for row in candidateList:
             file.write(str(row) + "\n")
 
-def exportCandidateDataExcel(candidateList):
-    filePath = "./exports/candidates.xlsx"
+def exportCandidateDataExcel(need, candidateList):
+    filePath = f"./exports/need_{need.need_id}/candidates.xlsx"
+    if not os.path.exists(f"./exports/need_{need.need_id}"):
+        os.makedirs(f"./exports/need_{need.need_id}")
     data2D = []
     for row in candidateList:
         data2D.append(list(row))
@@ -101,7 +121,10 @@ candidates = getCandidates(need[0]).all()
 
 print(need[0])
 
-print(list(candidates[0]))
+if len(candidates) != 0:
+    print(list(candidates[0]))
+else:
+    print("No candidates!")
 
-exportCandidateDataExcel(candidates)
+exportCandidateDataExcel(need[0], candidates)
 
