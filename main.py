@@ -1,7 +1,10 @@
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
+import pandas as pd
+from pandas import DataFrame
 import os
+import io
 
 load_dotenv()
 try:
@@ -40,13 +43,13 @@ def getCandidates(need):
         subcategory_id = None
     #LEGEND: candidate_id, salary_preference, experience_id, experience, education_id, education, category_id, category, subcategory_id, subcategory, city_id, city
     query = """
-    SELECT c.id AS candidate_id , c.desired_salary AS salary_preference, c.experience_id, exp.value AS experience, c.education_id, edu.value AS education,
+    SELECT DISTINCT c.id AS candidate_id , c.desired_salary AS salary_preference, c.experience_id, exp.value AS experience, c.education_id, edu.value AS education,
     cde.category_id AS category_id, ctg.value AS category, cde.subcategory_id AS subcategory_id, sctg.value AS subcategory, ccty.city_id, cty.name as city
     FROM candidates c
     INNER JOIN education edu ON edu.id = c.education_id
     INNER JOIN experiences exp ON exp.id = c.experience_id
     INNER JOIN candidate_domain_experiences cde ON cde.candidate_id = c.id
-    INNER JOIN candidate_city ccty ON c.id = ccty.candidate_id
+    INNER JOIN candidate_city ccty ON c.id = ccty.candidate_id AND ccty.city_id = :cityId
     INNER JOIN cities cty ON ccty.city_id = cty.id AND ccty.city_id = :cityId
     INNER JOIN categories ctg ON cde.category_id = ctg.id
     INNER JOIN subcategories sctg ON cde.subcategory_id = sctg.id 
@@ -74,11 +77,31 @@ def getCandidates(need):
 
     return result
 
+
+def exportCandidateDataTxt(candidateList):
+    filePath = "./exports/candidates.txt"
+    with io.open(filePath, "w", encoding='utf-8') as file:
+        file.write(f"Number of unique candidates: {len(candidateList)} \n\n\n")
+        for row in candidateList:
+            file.write(str(row) + "\n")
+
+def exportCandidateDataExcel(candidateList):
+    filePath = "./exports/candidates.xlsx"
+    data2D = []
+    for row in candidateList:
+        data2D.append(list(row))
+    df = pd.DataFrame(data2D, columns = ['Candidate ID', 'Prefered Salary', 'Experience ID', 'Experience Level', 'Education ID', 'Education Level', 'Category ID', 'Category', 'Subcategory ID', 'Subcategory', 'City ID', 'City Name'])
+    with pd.ExcelWriter(filePath) as writer:
+        df.to_excel(writer)
+    
+    
 need = getNeedData(2454).all()
 
 candidates = getCandidates(need[0]).all()
 
 print(need[0])
 
-print(candidates)
+print(list(candidates[0]))
+
+exportCandidateDataExcel(candidates)
 
