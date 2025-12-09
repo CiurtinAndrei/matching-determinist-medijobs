@@ -64,7 +64,8 @@ def getNeedData(id):
     INNER JOIN cities cty ON(n.city_id = cty.id)
     INNER JOIN need_schedule ns ON(n.id = ns.need_id)
     INNER JOIN schedules sch ON (ns.schedule_id = sch.id)
-    WHERE n.active = 1 AND n.signed = 1 AND n.finalized_status IS NULL AND n.id = :id;
+    WHERE n.active = 1 AND n.signed = 1 AND n.finalized_status IS NULL AND n.id = :id
+    ORDER BY schedule_id DESC;
     """
     result = conn.execute(text(query), {"id": id})
     return result
@@ -116,6 +117,7 @@ def getCandidates(need):
     return result
 
 
+
 def getVicinityCandidates(need, counties):
     need_id = need.need_id
     company_id = need.company_id
@@ -125,7 +127,6 @@ def getVicinityCandidates(need, counties):
     county = need.county
     if subcategory_id == 128 or subcategory_id == 129:
         subcategory_id = None
-    #LEGEND: candidate_id, salary_preference, experience_id, experience, education_id, education, category_id, category, subcategory_id, subcategory, city_id, city, county
     query = """
     SELECT DISTINCT c.id AS candidate_id , c.desired_salary AS salary_preference, c.experience_id, exp.value AS experience, c.education_id, edu.value AS education,
     cde.category_id AS category_id, ctg.value AS category, cde.subcategory_id AS subcategory_id, sctg.value AS subcategory, ccty.city_id, cty.name as city, cty.county
@@ -171,6 +172,62 @@ def getVicinityCandidates(need, counties):
             uniqueCandidates.append(row)
     return uniqueCandidates
 
+
+def getCandidatesBySchedule(need, schedules):
+    need_id = need.need_id
+    company_id = need.company_id
+    category_id = need.category_id
+    subcategory_id = need.subcategory_id    
+    city_id = need.city_id
+    county = need.county
+    if subcategory_id == 128 or subcategory_id == 129:
+        subcategory_id = None
+    
+    query = """
+    SELECT DISTINCT c.id AS candidate_id , c.desired_salary AS salary_preference, c.experience_id, exp.value AS experience, c.education_id, edu.value AS education,
+    cde.category_id AS category_id, ctg.value AS category, cde.subcategory_id AS subcategory_id, sctg.value AS subcategory, ccty.city_id, cty.name as city, cty.county
+    FROM candidates c
+    INNER JOIN education edu ON edu.id = c.education_id
+    INNER JOIN experiences exp ON exp.id = c.experience_id
+    INNER JOIN candidate_domain_experiences cde ON cde.candidate_id = c.id
+    INNER JOIN candidate_city ccty ON c.id = ccty.candidate_id 
+    INNER JOIN cities cty ON ccty.city_id = cty.id
+    INNER JOIN categories ctg ON cde.category_id = ctg.id
+    INNER JOIN subcategories sctg ON cde.subcategory_id = sctg.id
+    INNER JOIN candidate_schedule csch ON c.id = csch.candidate_id
+
+    WHERE    /*  EXCLUSIONS  */
+        c.current_employer IS NULL
+        AND NOT EXISTS ( 
+            SELECT 1
+            FROM candidate_blocked_companies blc
+            WHERE blc.candidate_id = c.id
+            AND blc.company_id = :companyId
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM processes prc
+            WHERE prc.candidate_id = c.id
+            AND prc.need_id = :needId
+        )
+        /*  INCLUSIONS  */
+        AND (cde.category_id = :categoryId AND cde.subcategory_id = :subcategoryId AND c.identification_id <= 2) AND (cty.id = :cityId) AND (csch.schedule_id = 50 
+    """
+
+    for schedule in schedules:
+        query = query + f" OR csch.schedule_id = {schedule}"
+    query = query + ") "
+    query = query + "ORDER BY c.education_id DESC, c.experience_id DESC, c.desired_salary ASC, c.id;"
+
+    result = conn.execute(text(query), {"needId": need_id, "companyId":company_id, "categoryId":category_id, "subcategoryId":subcategory_id, "cityId":city_id, "county":county})
+
+    unique = set()
+    uniqueCandidates = []
+    for row in result:
+        if row.candidate_id not in unique:
+            unique.add(row.candidate_id)
+            uniqueCandidates.append(row)
+    return uniqueCandidates
 
 def getAllCounties():
 
@@ -223,34 +280,45 @@ def exportCandidateDataExcel(need, candidateList):
         df.to_excel(writer)
     
     
-def pipeline(need_id):
+def executeMatching(need_id):
+
+    print(f"Starting deterministic matching process for need: {need_id}")
 
     need = getNeedData(need_id).all()
     if len(need) == 0:
-        print("No need was found!")
+        print(f"No valid need was found for id: {need_id}!")
         return
-    
-    print(need[0])
+
     candidates = getCandidates(need[0]).all()
 
-    if len(candidates) != 0:
-        print(list(candidates[0]))
-    else:
+    if len(candidates) == 0:
         print("No candidates found!")
         return
     
 
     if (len(candidates) < 50):
+        print("Not enough candidates in the main county. Search has been expanded.")
         counties = getNeighbouringCounties(need[0])
         candidates = getVicinityCandidates(need[0], counties)
 
     if (len(candidates) < 100):
+        print("Not enough candidates in the vicinity of the main county. Search has been expanded further.")
         counties = getAllCounties()
         candidates = getVicinityCandidates(need[0], counties)
 
+    if(len(candidates) > 500):
+        print("Too many candidates. Matching will be performed based on schedule.")
+        schedulesList = []
+        for row in need:
+            schedulesList.append(row.schedule_id)
+        candidates = getCandidatesBySchedule(need[0], schedulesList)
+        
+
     exportCandidateDataExcel(need[0], candidates)
+    print("Candidate list exported successfully for need: " + str(need[0].need_id))
+    print("No. of candidates: " + str(len(candidates)))
 
 
-#pipeline(2454)
-#pipeline(9543)
-pipeline(10195)
+executeMatching(10195)
+#executeMatching(9543)
+#executeMatching(10195)
