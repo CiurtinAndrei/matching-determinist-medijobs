@@ -301,10 +301,10 @@ def executeMatching(need_id):
         counties = getNeighbouringCounties(need[0])
         candidates = getVicinityCandidates(need[0], counties)
 
-    if (len(candidates) < 100):
-        print("Not enough candidates in the vicinity of the main county. Search has been expanded further.")
-        counties = getAllCounties()
-        candidates = getVicinityCandidates(need[0], counties)
+        if (len(candidates) < 100):
+            print("Not enough candidates in the vicinity of the main county. Search has been expanded further.")
+            counties = getAllCounties()
+            candidates = getVicinityCandidates(need[0], counties)
 
     if(len(candidates) > 500):
         print("Too many candidates. Matching will be performed based on schedule.")
@@ -315,10 +315,13 @@ def executeMatching(need_id):
         
 
     exportCandidateDataExcel(need[0], candidates)
-    print("Candidate list exported successfully for need: " + str(need[0].need_id))
+    print("Candidate list exported successfully!")
     print("No. of candidates: " + str(len(candidates)))
 
 
-executeMatching(10195)
+#executeMatching(10195)
 #executeMatching(9543)
 #executeMatching(10195)
+#executeMatching(9891)
+#executeMatching(9172)   exemplu de strainatate
+executeMatching(9093)
