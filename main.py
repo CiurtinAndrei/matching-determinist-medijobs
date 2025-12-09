@@ -3,6 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 import pandas as pd
 from pandas import DataFrame
+from math import *
 import os
 import io
 
@@ -13,6 +14,23 @@ try:
     print("MySQL connection is successful!")
 except SQLAlchemyError as e:
     print("MySQL connection failed!" + e)
+
+
+def haversineDistance(lat1, lon1, lat2, lon2):
+    lon1 = radians(lon1)
+    lon2 = radians(lon2)
+    lat1 = radians(lat1)
+    lat2 = radians(lat2)
+
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+
+    r = 6371
+
+    return (c * r)
+
 
 def getAvailableNeeds():
     #LEGEND: need_id, company_id, salary, category_id, category(name), subcategory_id, subcategory(name), city_id, city(name) latitude, longitude, schedule_id, schedule_name
@@ -60,10 +78,10 @@ def getCandidates(need):
     city_id = need.city_id
     if subcategory_id == 128 or subcategory_id == 129:
         subcategory_id = None
-    #LEGEND: candidate_id, salary_preference, experience_id, experience, education_id, education, category_id, category, subcategory_id, subcategory, city_id, city
+    #LEGEND: candidate_id, salary_preference, experience_id, experience, education_id, education, category_id, category, subcategory_id, subcategory, city_id, city, county
     query = """
     SELECT DISTINCT c.id AS candidate_id , c.desired_salary AS salary_preference, c.experience_id, exp.value AS experience, c.education_id, edu.value AS education,
-    cde.category_id AS category_id, ctg.value AS category, cde.subcategory_id AS subcategory_id, sctg.value AS subcategory, ccty.city_id, cty.name as city
+    cde.category_id AS category_id, ctg.value AS category, cde.subcategory_id AS subcategory_id, sctg.value AS subcategory, ccty.city_id, cty.name as city, cty.county
     FROM candidates c
     INNER JOIN education edu ON edu.id = c.education_id
     INNER JOIN experiences exp ON exp.id = c.experience_id
@@ -96,6 +114,38 @@ def getCandidates(need):
 
     return result
 
+def getCounties():
+
+    query = """
+    SELECT county, lat, lng
+    FROM cities
+    WHERE county != "Altele"
+    ORDER BY county ASC;
+    """
+    result = conn.execute(text(query)).all()
+    unique = set()
+    uniqueCounties = []
+    for row in result:
+        if row.county not in unique:
+            unique.add(row.county)
+            uniqueCounties.append(row)
+    return uniqueCounties
+
+
+def getNeighbouringCounties(need):
+
+    uniqueCounties = getCounties()
+    
+    treshold = 150 # Km
+    validCounties = []
+    for county in uniqueCounties:
+        distance = haversineDistance(need.latitude, need.longitude, county.lat, county.lng)
+        if (distance <= treshold):
+            validCounties.append(county)
+        
+    return validCounties
+
+
 def exportCandidateDataTxt(need, candidateList):
     filePath = f"./exports/need_{need.need_id}/candidates.txt"
     with io.open(filePath, "w", encoding='utf-8') as file:
@@ -110,11 +160,13 @@ def exportCandidateDataExcel(need, candidateList):
     data2D = []
     for row in candidateList:
         data2D.append(list(row))
-    df = pd.DataFrame(data2D, columns = ['Candidate ID', 'Prefered Salary', 'Experience ID', 'Experience Level', 'Education ID', 'Education Level', 'Category ID', 'Category', 'Subcategory ID', 'Subcategory', 'City ID', 'City Name'])
+    df = pd.DataFrame(data2D, columns = ['Candidate ID', 'Prefered Salary', 'Experience ID', 'Experience Level', 'Education ID', 'Education Level', 'Category ID', 'Category', 'Subcategory ID', 'Subcategory', 'City ID', 'City Name', 'County'])
     with pd.ExcelWriter(filePath) as writer:
         df.to_excel(writer)
     
     
+
+
 need = getNeedData(2454).all()
 
 candidates = getCandidates(need[0]).all()
@@ -126,5 +178,6 @@ if len(candidates) != 0:
 else:
     print("No candidates!")
 
-exportCandidateDataExcel(need[0], candidates)
+print(getNeighbouringCounties(need[0]))
 
+exportCandidateDataExcel(need[0], candidates)
