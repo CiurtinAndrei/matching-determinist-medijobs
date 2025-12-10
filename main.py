@@ -26,10 +26,39 @@ def haversineDistance(lat1, lon1, lat2, lon2):
     dlat = lat2 - lat1
     a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     c = 2 * asin(sqrt(a))
-
     r = 6371
-
     return (c * r)
+
+
+def getAllCounties():
+    query = """
+    SELECT id, county, lat, lng
+    FROM cities
+    WHERE county != "Altele"
+    ORDER BY county ASC;
+    """
+    result = conn.execute(text(query)).all()
+    unique = set()
+    uniqueCounties = []
+    for row in result:
+        if row.county not in unique:
+            unique.add(row.county)
+            uniqueCounties.append(row)
+    return uniqueCounties
+
+
+def getNeighbouringCounties(need):
+
+    uniqueCounties = getAllCounties()
+    
+    treshold = 150 # Distance in Km
+    validCounties = []
+    for county in uniqueCounties:
+        distance = haversineDistance(need.latitude, need.longitude, county.lat, county.lng)
+        if (distance <= treshold):
+            validCounties.append(county)
+        
+    return validCounties
 
 
 def getAvailableNeeds():
@@ -43,9 +72,9 @@ def getNeedData(id):
     #LEGEND: need_id, company_id, salary, category_id, category(name), subcategory_id, subcategory(name), city_id, city(name), county, latitude, longitude, schedule_id, schedule_name
     with open("./scripts/get_need_data.txt", "r") as file:
         query = file.read()
-
     result = conn.execute(text(query), {"id": id})
     return result
+
 
 def getCandidates(need):
     need_id = need.need_id
@@ -64,7 +93,6 @@ def getCandidates(need):
     result = conn.execute(text(query), {"needId": need_id, "companyId":company_id, "categoryId":category_id, "subcategoryId":subcategory_id, "cityId":city_id, "county":county})
 
     return result
-
 
 
 def getVicinityCandidates(need, counties):
@@ -124,37 +152,6 @@ def getCandidatesBySchedule(need, schedules):
             uniqueCandidates.append(row)
     return uniqueCandidates
 
-def getAllCounties():
-
-    query = """
-    SELECT id, county, lat, lng
-    FROM cities
-    WHERE county != "Altele"
-    ORDER BY county ASC;
-    """
-    result = conn.execute(text(query)).all()
-    unique = set()
-    uniqueCounties = []
-    for row in result:
-        if row.county not in unique:
-            unique.add(row.county)
-            uniqueCounties.append(row)
-    return uniqueCounties
-
-
-def getNeighbouringCounties(need):
-
-    uniqueCounties = getAllCounties()
-    
-    treshold = 150 # Distance in Km
-    validCounties = []
-    for county in uniqueCounties:
-        distance = haversineDistance(need.latitude, need.longitude, county.lat, county.lng)
-        if (distance <= treshold):
-            validCounties.append(county)
-        
-    return validCounties
-
 
 def exportCandidateDataTxt(need, candidateList):
     filePath = f"./exports/need_{need.need_id}/candidates.txt"
@@ -178,29 +175,23 @@ def exportCandidateDataExcel(need, candidateList):
 def executeMatching(need_id):
 
     print(f"Starting deterministic matching process for need: {need_id}")
-
     need = getNeedData(need_id).all()
     if len(need) == 0:
         print(f"No valid need was found for id: {need_id}!")
         return
 
     candidates = getCandidates(need[0]).all()
-
     if len(candidates) == 0:
         print("No candidates found!")
         return
-    
-
     if (len(candidates) < 50):
         print("Not enough candidates in the main county. Search has been expanded.")
         counties = getNeighbouringCounties(need[0])
         candidates = getVicinityCandidates(need[0], counties)
-
         if (len(candidates) < 100):
             print("Not enough candidates in the vicinity of the main county. Search has been expanded further.")
             counties = getAllCounties()
             candidates = getVicinityCandidates(need[0], counties)
-
     if(len(candidates) > 500):
         print("Too many candidates. Matching will be performed based on schedule.")
         schedulesList = []
@@ -208,14 +199,13 @@ def executeMatching(need_id):
             schedulesList.append(row.schedule_id)
         candidates = getCandidatesBySchedule(need[0], schedulesList)
         
-
     exportCandidateDataExcel(need[0], candidates)
     print("Candidate list exported successfully!")
     print("No. of candidates: " + str(len(candidates)))
 
 
 #executeMatching(10195)
-executeMatching(9543)
+#executeMatching(9891)
 #executeMatching(10195)
 #executeMatching(9891)
 #executeMatching(9172)   exemplu de strainatate
