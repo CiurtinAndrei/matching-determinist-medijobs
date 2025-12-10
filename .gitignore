@@ -1,6 +1,8 @@
 .venv
 .vscode
 .env
-exports/*
 
+exports/*
+scripts/*
 !exports/.gitkeep
+!scripts/.gitkeep
