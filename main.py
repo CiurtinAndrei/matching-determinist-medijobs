@@ -167,11 +167,17 @@ def exportCandidateDataExcel(need, candidateList):
     data2D = []
     for row in candidateList:
         data2D.append(list(row))
-    df = pd.DataFrame(data2D, columns = ['Candidate ID', 'Prefered Salary', 'Experience ID', 'Experience Level', 'Education ID', 'Education Level', 'Category ID', 'Category', 'Subcategory ID', 'Subcategory', 'City ID', 'City Name', 'County'])
+    df1 = pd.DataFrame(data2D, columns = ['Candidate ID', 'Prefered Salary', 'Experience ID', 'Experience Level', 
+                                          'Education ID', 'Education Level', 'Category ID', 'Category', 'Subcategory ID', 
+                                          'Subcategory', 'City ID', 'City Name', 'County'])
+    df2 = pd.DataFrame([list(need)], columns = ['Need ID', 'Company ID', 'Salary', 'Category ID', 'Category', 
+                                                'Subcategory ID', 'Subcategory', 'City ID', 'City Name', 'County', 
+                                                'Latitude', 'Longitude', 'Schedule ID', 'Schedule Type'])
     with pd.ExcelWriter(filePath) as writer:
-        df.to_excel(writer)
-    
-    
+        df1.to_excel(writer, sheet_name = "Candidates")
+        df2.to_excel(writer, sheet_name = "Need Data")
+
+        
 def executeMatching(need_id):
 
     print(f"Starting deterministic matching process for need: {need_id}")
@@ -209,3 +215,45 @@ def executeMatching(need_id):
 #executeMatching(10195)
 #executeMatching(9891)
 #executeMatching(9172)  
+#executeMatching(2454)
+
+
+def reprogram(quizAnswer):
+
+    map = {7:1, 6:2, 5:3, 4:4, 3:5, 2:6, 1:7}
+    return map.get(quizAnswer)
+
+
+
+def getQuizResults():
+
+    with open("./scripts/get_quiz_answers.txt", "r") as file:
+        query = file.read()
+    quizzes = pd.DataFrame(conn.execute(text(query)).all(), columns=['candidate_id', 'question_number', 'value'])
+    quizzes['value'] = quizzes['value'].astype(float)
+
+    candidateData = []
+    for candidate_id, group in quizzes.groupby('candidate_id'):
+        values = group['value'].to_list()
+        tempList = [
+            candidate_id,
+            sum(values[0:3]) / 21,
+            sum(values[3:5]) / 14,
+            sum(values[5:7]) / 14,
+            sum(values[7:9]) / 14,
+            sum(values[9:11]) / 14,
+            sum(values[11:13]) / 14,
+            sum(values[13:15]) / 14,
+            sum(values[15:17]) / 14
+        ]
+        candidateData.append(tempList)
+
+    filePath = "./exports/quizzes/quiz_data.xlsx"
+    os.makedirs(os.path.dirname(filePath), exist_ok=True)
+    df = pd.DataFrame(candidateData, columns=['Candidate ID', 'Emotional Stability', 'Altruism', 'Desire to Specialize', 
+                                              'Communication and Relations', 'Stress Resistance', 
+                                              'Anticipation and Flexibility', 'Discipline', 'Organization'])
+    df.to_excel(filePath, sheet_name="Quiz Data per Candidate", index=False)
+
+
+getQuizResults()
