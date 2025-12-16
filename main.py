@@ -94,6 +94,24 @@ def getCandidates(need):
 
     return result
 
+def getAbroadWorkCandidates(need):
+    need_id = need.need_id
+    company_id = need.company_id
+    category_id = need.category_id
+    subcategory_id = need.subcategory_id    
+    city_id = need.city_id
+    county = need.county
+
+    if subcategory_id == 128 or subcategory_id == 129:
+        subcategory_id = None
+        
+    #LEGEND: candidate_id, salary_preference, experience_id, experience, education_id, education, category_id, category, subcategory_id, subcategory, city_id, city, county
+    with open("./scripts/get_abroad_work_candidates.txt", "r") as file:
+        query = file.read()
+    result = conn.execute(text(query), {"needId": need_id, "companyId":company_id, "categoryId":category_id, "subcategoryId":subcategory_id, "cityId":city_id, "county":county})
+
+    return result
+
 
 def getVicinityCandidates(need, counties):
     need_id = need.need_id
@@ -153,10 +171,21 @@ def executeMatching(need_id):
 
     print(f"Starting deterministic matching process for need: {need_id}")
     need = getNeedData(need_id).all()
+
+    if need[0].city[0:14] == 'In strainatate':
+        print("This need is for a foreign country! Searching candidates...")
+        candidates = getAbroadWorkCandidates(need[0]).all()
+        if len(candidates) == 0:
+            print("No candidates found!")
+            return
+        print("Candidate list exported successfully!")
+        print("No. of candidates: " + str(len(candidates)))
+        exportCandidateDataExcel(need[0], candidates)
+        return candidates
+    
     if len(need) == 0:
         print(f"No valid need was found for id: {need_id}!")
         return
-
     candidates = getCandidates(need[0]).all()
     if len(candidates) == 0:
         print("No candidates found!")
@@ -174,14 +203,12 @@ def executeMatching(need_id):
     exportCandidateDataExcel(need[0], candidates)
     print("Candidate list exported successfully!")
     print("No. of candidates: " + str(len(candidates)))
+    return candidates
 
 
-#executeMatching(10195)
-#executeMatching(9891)
-#executeMatching(10195)
-#executeMatching(9891)
-#executeMatching(9172)  
-executeMatching(2454)
+
+
+
 
 
 def reprogram(quizAnswer):
@@ -220,6 +247,19 @@ def getQuizResults():
                                               'Communication and Relations', 'Stress Resistance', 
                                               'Anticipation and Flexibility', 'Discipline', 'Organization'])
     df.to_excel(filePath, sheet_name="Quiz Data per Candidate", index=False)
+
+
+
+#candidates = executeMatching(10195)
+#candidates = executeMatching(9891)
+#candidates = executeMatching(10195)
+#candidates = executeMatching(9891)
+#candidates = executeMatching(9172)  
+candidates = executeMatching(2454)
+#candidates = executeMatching(9165)
+
+for i in candidates:
+    print(i.candidate_id)
 
 
 #getQuizResults()
