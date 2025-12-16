@@ -124,35 +124,6 @@ def getVicinityCandidates(need, counties):
     return uniqueCandidates
 
 
-def getCandidatesBySchedule(need, schedules):
-    need_id = need.need_id
-    company_id = need.company_id
-    category_id = need.category_id
-    subcategory_id = need.subcategory_id    
-    city_id = need.city_id
-    county = need.county
-    if subcategory_id == 128 or subcategory_id == 129:
-        subcategory_id = None
-    
-    with open("./scripts/get_candidates_by_schedule.txt", "r") as file:
-        query = file.read()
-
-    for schedule in schedules:
-        query = query + f" OR csch.schedule_id = {schedule}"
-    query = query + ") "
-    query = query + "ORDER BY c.education_id DESC, c.experience_id DESC, c.desired_salary ASC, c.id;"
-
-    result = conn.execute(text(query), {"needId": need_id, "companyId":company_id, "categoryId":category_id, "subcategoryId":subcategory_id, "cityId":city_id, "county":county})
-
-    unique = set()
-    uniqueCandidates = []
-    for row in result:
-        if row.candidate_id not in unique:
-            unique.add(row.candidate_id)
-            uniqueCandidates.append(row)
-    return uniqueCandidates
-
-
 def exportCandidateDataTxt(need, candidateList):
     filePath = f"./exports/need_{need.need_id}/candidates.txt"
     with io.open(filePath, "w", encoding='utf-8') as file:
@@ -198,12 +169,7 @@ def executeMatching(need_id):
             print("Not enough candidates in the vicinity of the main county. Search has been expanded further.")
             counties = getAllCounties()
             candidates = getVicinityCandidates(need[0], counties)
-    if(len(candidates) > 500):
-        print("Too many candidates. Matching will be performed based on schedule.")
-        schedulesList = []
-        for row in need:
-            schedulesList.append(row.schedule_id)
-        candidates = getCandidatesBySchedule(need[0], schedulesList)
+
         
     exportCandidateDataExcel(need[0], candidates)
     print("Candidate list exported successfully!")
@@ -215,7 +181,7 @@ def executeMatching(need_id):
 #executeMatching(10195)
 #executeMatching(9891)
 #executeMatching(9172)  
-#executeMatching(2454)
+executeMatching(2454)
 
 
 def reprogram(quizAnswer):
@@ -256,4 +222,4 @@ def getQuizResults():
     df.to_excel(filePath, sheet_name="Quiz Data per Candidate", index=False)
 
 
-getQuizResults()
+#getQuizResults()
