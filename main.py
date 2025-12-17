@@ -227,6 +227,17 @@ def getQuizResults():
 
     candidateData = []
     for candidate_id, group in quizzes.groupby('candidate_id'):
+        with open("./scripts/get_candidate_latest_valid_process.txt", "r") as file:
+            query2 = file.read()
+        label = 'N/A'
+        latestProcess = conn.execute(text(query2), {"candidateId": candidate_id}).all()
+        if len(latestProcess) == 0:
+            #label = 'N/A'
+            continue
+        elif latestProcess[0].hired == 1:
+            label = 1
+        elif latestProcess[0].rejected_by_company == 1:
+            label = 0
         values = group['value'].to_list()
         tempList = [
             candidate_id,
@@ -237,7 +248,8 @@ def getQuizResults():
             sum(values[9:11]) / 14,
             sum(values[11:13]) / 14,
             sum(values[13:15]) / 14,
-            sum(values[15:17]) / 14
+            sum(values[15:17]) / 14,
+            label
         ]
         candidateData.append(tempList)
 
@@ -245,7 +257,7 @@ def getQuizResults():
     os.makedirs(os.path.dirname(filePath), exist_ok=True)
     df = pd.DataFrame(candidateData, columns=['Candidate ID', 'Emotional Stability', 'Altruism', 'Desire to Specialize', 
                                               'Communication and Relations', 'Stress Resistance', 
-                                              'Anticipation and Flexibility', 'Discipline', 'Organization'])
+                                              'Anticipation and Flexibility', 'Discipline', 'Organization', 'Label'])
     df.to_excel(filePath, sheet_name="Quiz Data per Candidate", index=False)
 
 
@@ -258,8 +270,5 @@ def getQuizResults():
 candidates = executeMatching(2454)
 #candidates = executeMatching(9165)
 
-for i in candidates:
-    print(i.candidate_id)
 
-
-#getQuizResults()
+getQuizResults()
