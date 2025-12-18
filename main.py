@@ -166,6 +166,24 @@ def exportCandidateDataExcel(need, candidateList):
         df1.to_excel(writer, sheet_name = "Candidates")
         df2.to_excel(writer, sheet_name = "Need Data")
 
+
+def exportCandidateAbroadDataExcel(need, candidateList):
+    filePath = f"./exports/need_{need.need_id}/candidates.xlsx"
+    if not os.path.exists(f"./exports/need_{need.need_id}"):
+        os.makedirs(f"./exports/need_{need.need_id}")
+    data2D = []
+    for row in candidateList:
+        data2D.append(list(row))
+    df1 = pd.DataFrame(data2D, columns = ['Candidate ID', 'Prefered Salary', 'Experience ID', 'Experience Level', 
+                                          'Education ID', 'Education Level', 'Category ID', 'Category', 'Subcategory ID', 
+                                          'Subcategory', 'City ID', 'City Name', 'County', 'Abroad Agreement'])
+    df2 = pd.DataFrame([list(need)], columns = ['Need ID', 'Company ID', 'Salary', 'Category ID', 'Category', 
+                                                'Subcategory ID', 'Subcategory', 'City ID', 'City Name', 'County', 
+                                                'Latitude', 'Longitude', 'Schedule ID', 'Schedule Type'])
+    with pd.ExcelWriter(filePath) as writer:
+        df1.to_excel(writer, sheet_name = "Candidates")
+        df2.to_excel(writer, sheet_name = "Need Data")
+
         
 def executeMatching(need_id):
 
@@ -180,7 +198,7 @@ def executeMatching(need_id):
             return
         print("Candidate list exported successfully!")
         print("No. of candidates: " + str(len(candidates)))
-        exportCandidateDataExcel(need[0], candidates)
+        exportCandidateAbroadDataExcel(need[0], candidates)
         return candidates
     
     if len(need) == 0:
@@ -232,8 +250,8 @@ def getQuizResults():
         label = 'N/A'
         latestProcess = conn.execute(text(query2), {"candidateId": candidate_id}).all()
         if len(latestProcess) == 0:
-            #label = 'N/A'
-            continue
+            label = 'N/A'
+            #continue
         elif latestProcess[0].hired == 1:
             label = 1
         elif latestProcess[0].rejected_by_company == 1:
@@ -268,7 +286,8 @@ def getQuizResults():
 #candidates = executeMatching(9891)
 #candidates = executeMatching(9172)  
 candidates = executeMatching(2454)
-#candidates = executeMatching(9165)
+#candidates = executeMatching(9165)   # exemplu in strainatate
 
 
-getQuizResults()
+
+#getQuizResults()
