@@ -7,16 +7,19 @@ from math import *
 import os
 import io
 
+#conexiunea la baza de date. Inlocuieste variabilele de environment cu credentialele bazei tale de date.
+
 load_dotenv()
 try:
-    mysql_engine = create_engine(f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASS')}@localhost:{os.getenv('PORT')}/{os.getenv('DBNAME')}")
+    mysql_engine = create_engine(f"mysql+pymysql://{os.getenv('USER')}:{os.getenv('PASS')}@localhost:{os.getenv('PORT')}/{os.getenv('DBNAME')}")  
     conn = mysql_engine.connect()
     print("MySQL connection is successful!")
 except SQLAlchemyError as e:
     print("MySQL connection failed!" + e)
 
 
-def haversineDistance(lat1, lon1, lat2, lon2):
+
+def haversineDistance(lat1, lon1, lat2, lon2):         #calculeaza distanta dintre doua orase, ca sa cautam si candidatii din orasele vecine.
     lon1 = radians(lon1)
     lon2 = radians(lon2)
     lat1 = radians(lat1)
@@ -30,7 +33,7 @@ def haversineDistance(lat1, lon1, lat2, lon2):
     return (c * r)
 
 
-def getAllCounties():
+def getAllCounties():               #functie ajutatoare pentru a selecta toate judetele din Romania.
     query = """
     SELECT id, county, lat, lng
     FROM cities
@@ -47,7 +50,7 @@ def getAllCounties():
     return uniqueCounties
 
 
-def getNeighbouringCounties(need):
+def getNeighbouringCounties(need):         #functie ajutatoare pentru a selecta toate judetele vecine cu judetul unde are loc oferta de munca respectiva
 
     uniqueCounties = getAllCounties()
     
@@ -61,14 +64,16 @@ def getNeighbouringCounties(need):
     return validCounties
 
 
-def getAvailableNeeds():
+def getAvailableNeeds():              #functie ajutatoare pentru a obtine un obiect sqlalchemy cu toate ofertele de munca disponibile
+
     #LEGEND: need_id, company_id, salary, category_id, category(name), subcategory_id, subcategory(name), city_id, city(name) latitude, longitude, schedule_id, schedule_name
     with open("./scripts/get_all_needs.txt", "r") as file:
         query = file.read()
     result = conn.execute(text(query))
     return result
 
-def getNeedData(id):
+def getNeedData(id):                   #returneaza un obiect sqlalchemy cu toate informatiile aferente unei oferte de munca
+
     #LEGEND: need_id, company_id, salary, category_id, category(name), subcategory_id, subcategory(name), city_id, city(name), county, latitude, longitude, schedule_id, schedule_name
     with open("./scripts/get_need_data.txt", "r") as file:
         query = file.read()
@@ -76,7 +81,7 @@ def getNeedData(id):
     return result
 
 
-def getCandidates(need):
+def getCandidates(need):             #returneaza obiect sqlalchemy cu candidatii ce respecta criteriile principale
     need_id = need.need_id
     company_id = need.company_id
     category_id = need.category_id
@@ -94,7 +99,7 @@ def getCandidates(need):
 
     return result
 
-def getAbroadWorkCandidates(need):
+def getAbroadWorkCandidates(need):      # (folosita pt oferte de munca in strainatate) returneaza obiect sqlalchemy cu candidatii ce respecta criteriile principale
     need_id = need.need_id
     company_id = need.company_id
     category_id = need.category_id
@@ -113,7 +118,7 @@ def getAbroadWorkCandidates(need):
     return result
 
 
-def getVicinityCandidates(need, counties):
+def getVicinityCandidates(need, counties):     # (folosita cand cautam candidati din judetele vecine) returneaza obiect sqlalchemy cu candidatii ce respecta criteriile principale
     need_id = need.need_id
     company_id = need.company_id
     category_id = need.category_id
@@ -142,14 +147,14 @@ def getVicinityCandidates(need, counties):
     return uniqueCandidates
 
 
-def exportCandidateDataTxt(need, candidateList):
+def exportCandidateDataTxt(need, candidateList): #functie auxiliara de export in format txt (nu e folosita)
     filePath = f"./exports/need_{need.need_id}/candidates.txt"
     with io.open(filePath, "w", encoding='utf-8') as file:
         file.write(f"Number of unique candidates: {len(candidateList)} \n\n\n")
         for row in candidateList:
             file.write(str(row) + "\n")
 
-def exportCandidateDataExcel(need, candidateList):
+def exportCandidateDataExcel(need, candidateList):   #functie auxiliara de export in format excel. Se va creea de asemenea un folder auxiliar pentru oferta de munca respectiva.
     filePath = f"./exports/need_{need.need_id}/candidates.xlsx"
     if not os.path.exists(f"./exports/need_{need.need_id}"):
         os.makedirs(f"./exports/need_{need.need_id}")
@@ -167,7 +172,7 @@ def exportCandidateDataExcel(need, candidateList):
         df2.to_excel(writer, sheet_name = "Need Data")
 
 
-def exportCandidateAbroadDataExcel(need, candidateList):
+def exportCandidateAbroadDataExcel(need, candidateList):  # export excel in cazul ofertelor din strainatate
     filePath = f"./exports/need_{need.need_id}/candidates.xlsx"
     if not os.path.exists(f"./exports/need_{need.need_id}"):
         os.makedirs(f"./exports/need_{need.need_id}")
@@ -185,12 +190,12 @@ def exportCandidateAbroadDataExcel(need, candidateList):
         df2.to_excel(writer, sheet_name = "Need Data")
 
         
-def executeMatching(need_id):
+def executeMatching(need_id):       #functia principala
 
     print(f"Starting deterministic matching process for need: {need_id}")
     need = getNeedData(need_id).all()
 
-    if need[0].city[0:14] == 'In strainatate':
+    if need[0].city[0:14] == 'In strainatate':               #bloc separat pentru ofertele din strainatate
         print("This need is for a foreign country! Searching candidates...")
         candidates = getAbroadWorkCandidates(need[0]).all()
         if len(candidates) == 0:
@@ -204,8 +209,8 @@ def executeMatching(need_id):
     if len(need) == 0:
         print(f"No valid need was found for id: {need_id}!")
         return
-    candidates = getCandidates(need[0]).all()
-    if len(candidates) == 0:
+    candidates = getCandidates(need[0]).all()               # Obtinem lista principala de candidati. Daca sunt mai putin de 50 candidati, cautam si in judetele vecine;
+    if len(candidates) == 0:                                # Daca dupa a doua cautare avem sub 100 candidati, cautam in toata tara.
         print("No candidates found!")
         return
     if (len(candidates) < 50):
@@ -229,23 +234,23 @@ def executeMatching(need_id):
 
 
 
-def reprogram(quizAnswer):
-
+def reprogram(quizAnswer):            #functie ajutatoare folosita in chestionare pentru schimbarea anumitor raspunsuri (mai multe detalii in manualul tehnic)
     map = {7:1, 6:2, 5:3, 4:4, 3:5, 2:6, 1:7}
     return map.get(quizAnswer)
 
 
 
-def getQuizResults():
+def getQuizResults():                 #functie care cauta toate chestionarele la care s-a raspuns integral (nicio intrebare omisa)
+                                      
 
-    with open("./scripts/get_quiz_answers.txt", "r") as file:
+    with open("./scripts/get_quiz_answers.txt", "r") as file:                              
         query = file.read()
     quizzes = pd.DataFrame(conn.execute(text(query)).all(), columns=['candidate_id', 'question_number', 'value'])
     quizzes['value'] = quizzes['value'].astype(float)
 
     candidateData = []
     for candidate_id, group in quizzes.groupby('candidate_id'):
-        with open("./scripts/get_candidate_latest_valid_process.txt", "r") as file:
+        with open("./scripts/get_candidate_latest_valid_process.txt", "r") as file:           #vedem daca un anumit candidat a fost angajat sau respins
             query2 = file.read()
         label = 'N/A'
         latestProcess = conn.execute(text(query2), {"candidateId": candidate_id}).all()
@@ -271,7 +276,7 @@ def getQuizResults():
         ]
         candidateData.append(tempList)
 
-    filePath = "./exports/quizzes/quiz_data.xlsx"
+    filePath = "./exports/quizzes/quiz_data.xlsx"             #exportam datele in Excel
     os.makedirs(os.path.dirname(filePath), exist_ok=True)
     df = pd.DataFrame(candidateData, columns=['Candidate ID', 'Emotional Stability', 'Altruism', 'Desire to Specialize', 
                                               'Communication and Relations', 'Stress Resistance', 
