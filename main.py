@@ -7,7 +7,7 @@ from math import *
 import os
 import io
 
-#conexiunea la baza de date. Inlocuieste variabilele de environment cu credentialele bazei tale de date.
+#conexiunea la baza de date. Inlocuieste variabilele de environment cu credentialele bazei tale de date. necesita si instalarea librariei pymysql, altfel nu poti rula query-uri
 
 load_dotenv()
 try:
